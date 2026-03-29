@@ -17,17 +17,17 @@ def main():
     project_root = os.path.dirname(script_dir)
     
     source_json_path = os.path.join(project_root, 'dataset', 'pairtally_dataset', 'annotations', 'pairtally_annotations_simple.json')
-    anno_dir = os.path.join(project_root, 'dataset', 'processed_dataset', 'Anno')
+    
+    # We need to check both the active and removed annotation folders
+    anno_dirs = [
+        os.path.join(project_root, 'dataset', 'processed_dataset', 'Anno'),
+        os.path.join(project_root, 'dataset', 'removed', 'Anno')
+    ]
 
     print(f"Reading source from: {source_json_path}")
-    print(f"Updating annotations in: {anno_dir}")
 
     if not os.path.exists(source_json_path):
         print("Source JSON file does not exist.")
-        return
-
-    if not os.path.exists(anno_dir):
-        print("Annotation directory does not exist.")
         return
 
     try:
@@ -53,31 +53,33 @@ def main():
 
         # Update positive annotation file
         pos_file_name = f"{base_name}_positive.json"
-        pos_file_path = os.path.join(anno_dir, pos_file_name)
-        if os.path.exists(pos_file_path):
-            try:
-                with open(pos_file_path, 'r', encoding='utf-8') as f:
-                    anno_data = json.load(f)
-                anno_data['exam_bbox'] = pos_exam_bboxes
-                with open(pos_file_path, 'w', encoding='utf-8') as f:
-                    json.dump(anno_data, f, indent=4)
-                updated_count += 1
-            except Exception as e:
-                print(f"Error updating {pos_file_name}: {e}")
+        for a_dir in anno_dirs:
+            pos_file_path = os.path.join(a_dir, pos_file_name)
+            if os.path.exists(pos_file_path):
+                try:
+                    with open(pos_file_path, 'r', encoding='utf-8') as f:
+                        anno_data = json.load(f)
+                    anno_data['exam_bbox'] = pos_exam_bboxes
+                    with open(pos_file_path, 'w', encoding='utf-8') as f:
+                        json.dump(anno_data, f, indent=4)
+                    updated_count += 1
+                except Exception as e:
+                    print(f"Error updating {pos_file_name}: {e}")
 
         # Update negative annotation file
         neg_file_name = f"{base_name}_negative.json"
-        neg_file_path = os.path.join(anno_dir, neg_file_name)
-        if os.path.exists(neg_file_path):
-            try:
-                with open(neg_file_path, 'r', encoding='utf-8') as f:
-                    anno_data = json.load(f)
-                anno_data['exam_bbox'] = neg_exam_bboxes
-                with open(neg_file_path, 'w', encoding='utf-8') as f:
-                    json.dump(anno_data, f, indent=4)
-                updated_count += 1
-            except Exception as e:
-                print(f"Error updating {neg_file_name}: {e}")
+        for a_dir in anno_dirs:
+            neg_file_path = os.path.join(a_dir, neg_file_name)
+            if os.path.exists(neg_file_path):
+                try:
+                    with open(neg_file_path, 'r', encoding='utf-8') as f:
+                        anno_data = json.load(f)
+                    anno_data['exam_bbox'] = neg_exam_bboxes
+                    with open(neg_file_path, 'w', encoding='utf-8') as f:
+                        json.dump(anno_data, f, indent=4)
+                    updated_count += 1
+                except Exception as e:
+                    print(f"Error updating {neg_file_name}: {e}")
 
     print(f"Successfully updated {updated_count} annotation files.")
 

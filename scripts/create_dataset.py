@@ -58,6 +58,17 @@ def main():
             dest_img_path = output_image_dir / new_img_name
             dest_json_path = output_anno_dir / new_json_name
             
+            # Safety check: Don't overwrite if the JSON already has annotations
+            if dest_json_path.exists():
+                try:
+                    with open(dest_json_path, 'r') as f:
+                        existing = json.load(f)
+                    if existing.get('loc_bbox') and len(existing['loc_bbox']) > 0:
+                        # Skip this file to preserve manual work
+                        continue
+                except:
+                    pass
+
             # Copy image
             shutil.copy2(src_img_path, dest_img_path)
             

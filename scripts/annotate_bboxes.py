@@ -74,6 +74,12 @@ class BBoxAnnotationApp:
         self.tk_image = None
         self.default_btn_bg = None
         self.last_mouse_y = None
+        self.zoom_multiplier = 1.0
+        self.rotation = 0  # 0, 90, 180, 270 degrees clockwise
+        self.pan_x = 0
+        self.pan_y = 0
+        self.pan_start = None
+        self.pan_moved = False
 
         # Initialize GUI
         self.setup_ui()
@@ -164,7 +170,9 @@ class BBoxAnnotationApp:
         self.canvas.bind("<Button-1>", self.on_mouse_down)
         self.canvas.bind("<B1-Motion>", self.on_mouse_drag)
         self.canvas.bind("<ButtonRelease-1>", self.on_mouse_up)
-        self.canvas.bind("<Button-3>", self.on_right_click)
+        self.canvas.bind("<Button-3>", self.on_right_down)
+        self.canvas.bind("<B3-Motion>", self.on_right_drag)
+        self.canvas.bind("<ButtonRelease-3>", self.on_right_up)
         self.canvas.bind("<Motion>", self.on_mouse_move)
         self.canvas_frame.bind("<Configure>", self.on_resize)
         self.root.bind("<Control-z>", lambda e: self.undo_click())
@@ -179,23 +187,51 @@ class BBoxAnnotationApp:
         self.root.bind("<space>", lambda e: self.handle_shortcut(self.confirm_and_next))
         self.root.bind("s", lambda e: self.handle_shortcut(self.toggle_rect_mode_key))
         self.root.bind("r", lambda e: self.handle_shortcut(self.restart_image))
+        self.root.bind("<Control-plus>", lambda e: self.handle_shortcut(lambda: self.change_zoom(1.1)))
+        self.root.bind("<Control-equal>", lambda e: self.handle_shortcut(lambda: self.change_zoom(1.1)))
+        self.root.bind("<Control-minus>", lambda e: self.handle_shortcut(lambda: self.change_zoom(0.9)))
+        self.root.bind("<Control-0>", lambda e: self.handle_shortcut(self.reset_zoom))
+
+        # Rotation buttons
+        self.btn_rot_ccw = tk.Button(row2, text="Rotate CCW", command=lambda: self.rotate_image(-90))
+        self.btn_rot_ccw.pack(side=tk.LEFT, padx=5)
+        self.btn_rot_cw = tk.Button(row2, text="Rotate CW", command=lambda: self.rotate_image(90))
+        self.btn_rot_cw.pack(side=tk.LEFT, padx=5)
 
     def on_resize(self, event):
         # Redraw canvas content on resize, but only if an image is loaded
         if self.pil_image:
             self.redraw_all()
 
+    def _transform_pt(self, x, y, angle, W, H):
+        if angle == 0: return x, y
+        if angle == 90: return H - y, x
+        if angle == 180: return W - x, H - y
+        if angle == 270: return y, W - x
+        return x, y
+
+    def _untransform_pt(self, rx, ry, angle, W, H):
+        if angle == 0: return rx, ry
+        if angle == 90: return ry, H - rx
+        if angle == 180: return W - rx, H - ry
+        if angle == 270: return W - ry, rx
+        return rx, ry
+
     def _canvas_to_img_coords(self, canvas_x, canvas_y):
         if self.scale_factor == 0: return canvas_x, canvas_y
-        # Adjust for image offset on canvas
-        img_x = (canvas_x - self.x_offset) / self.scale_factor
-        img_y = (canvas_y - self.y_offset) / self.scale_factor
-        return img_x, img_y
+        # Coords relative to scaled displayed (rotated) image
+        rx = (canvas_x - self.x_offset) / self.scale_factor
+        ry = (canvas_y - self.y_offset) / self.scale_factor
+        # Back to original image space
+        W, H = self.pil_image.size
+        return self._untransform_pt(rx, ry, self.rotation, W, H)
 
     def _img_to_canvas_coords(self, img_x, img_y):
-        # Adjust for image offset on canvas
-        canvas_x = (img_x * self.scale_factor) + self.x_offset
-        canvas_y = (img_y * self.scale_factor) + self.y_offset
+        # Original to rotated display space
+        W, H = self.pil_image.size
+        rx, ry = self._transform_pt(img_x, img_y, self.rotation, W, H)
+        canvas_x = (rx * self.scale_factor) + self.x_offset
+        canvas_y = (ry * self.scale_factor) + self.y_offset
         return canvas_x, canvas_y
 
     def _img_bbox_to_canvas_bbox(self, bbox):
@@ -212,20 +248,22 @@ class BBoxAnnotationApp:
         if canvas_w <= 1 or canvas_h <= 1 or not self.pil_image:
             return
 
-        img_w, img_h = self.pil_image.size
+        # Get rotated image for display
+        display_pil = self.pil_image.rotate(-self.rotation, expand=True)
+        img_w, img_h = display_pil.size
         
         w_ratio = canvas_w / img_w
         h_ratio = canvas_h / img_h
-        self.scale_factor = min(w_ratio, h_ratio)
+        self.scale_factor = min(w_ratio, h_ratio) * self.zoom_multiplier
         
         self.display_width = int(img_w * self.scale_factor)
         self.display_height = int(img_h * self.scale_factor)
 
-        display_image = self.pil_image.resize((self.display_width, self.display_height), LANCZOS)
+        display_image = display_pil.resize((self.display_width, self.display_height), LANCZOS)
         self.tk_image = ImageTk.PhotoImage(display_image)
         
-        self.x_offset = (canvas_w - self.display_width) / 2
-        self.y_offset = (canvas_h - self.display_height) / 2
+        self.x_offset = (canvas_w - self.display_width) / 2 + self.pan_x
+        self.y_offset = (canvas_h - self.display_height) / 2 + self.pan_y
         
         self.image_id = self.canvas.create_image(self.x_offset, self.y_offset, image=self.tk_image, anchor=tk.NW)
 
@@ -287,6 +325,8 @@ class BBoxAnnotationApp:
             self.root.destroy()
             return
 
+        old_source_name = self.current_anno_data.get('source_img_name') if self.current_anno_data else None
+
         self.current_img_name = self.image_list[self.current_image_index]
         
         # Determine path and set type
@@ -325,6 +365,13 @@ class BBoxAnnotationApp:
         self.hovered_box_id = None
         self.exam_box_data = {}
         self.hovered_exam_box_id = None
+
+        # Only reset view if the source image changed (persists zoom/pan across +/- pairs)
+        if old_source_name != self.current_anno_data.get('source_img_name'):
+            self.zoom_multiplier = 1.0
+            self.rotation = 0
+            self.pan_x = 0
+            self.pan_y = 0
 
         # Load existing annotations or annotations from pair (for reusing boxes)
         existing_bboxes = self.current_anno_data.get('loc_bbox', [])
@@ -441,11 +488,17 @@ class BBoxAnnotationApp:
             final_ratio = target_ratio * ratio_randomness
 
             # Calculate width and height while preserving approximate area of rect_size^2
-            w = self.rect_size * (final_ratio ** 0.5)
-            h = self.rect_size / (final_ratio ** 0.5)
+            w_vis = self.rect_size * (final_ratio ** 0.5)
+            h_vis = self.rect_size / (final_ratio ** 0.5)
 
-            half_w = w / 2
-            half_h = h / 2
+            # Translate visual dimensions to image space dimensions based on rotation
+            if self.rotation in [90, 270]:
+                w_img, h_img = h_vis, w_vis
+            else:
+                w_img, h_img = w_vis, h_vis
+
+            half_w = w_img / 2
+            half_h = h_img / 2
 
             self.add_new_box([x_img - half_w, y_img - half_h, x_img + half_w, y_img + half_h])
             return
@@ -557,29 +610,58 @@ class BBoxAnnotationApp:
         
         self.update_ui_state()
     
-    def on_right_click(self, event):
+    def on_right_down(self, event):
+        self.pan_start = (event.x, event.y)
+        self.pan_moved = False
+
+    def on_right_drag(self, event):
+        if self.pan_start is None: return
+        dx = event.x - self.pan_start[0]
+        dy = event.y - self.pan_start[1]
+        # Threshold to distinguish between click and drag
+        if abs(dx) > 2 or abs(dy) > 2:
+            self.pan_moved = True
+            self.pan_x += dx
+            self.pan_y += dy
+            self.pan_start = (event.x, event.y)
+            self.redraw_all()
+
+    def on_right_up(self, event):
+        if not self.pan_moved:
+            self.delete_box_at(event)
+        self.pan_start = None
+
+    def delete_box_at(self, event):
         if self.is_viewing_removed or not self.annotation_enabled.get(): return
         x_canvas = self.canvas.canvasx(event.x)
         y_canvas = self.canvas.canvasy(event.y)
 
+        img_x, img_y = self._canvas_to_img_coords(x_canvas, y_canvas)
+
         if self.rect_mode_var.get():
             # Check if clicked on an exam box to copy size
             for rect_id, bbox_orig in self.exam_box_data.items():
-                bbox_scaled = self._img_bbox_to_canvas_bbox(bbox_orig)
-                if bbox_scaled[0] <= x_canvas <= bbox_scaled[2] and bbox_scaled[1] <= y_canvas <= bbox_scaled[3]:
-                    w = bbox_orig[2] - bbox_orig[0]
-                    h = bbox_orig[3] - bbox_orig[1]
-                    if h > 0:
-                        self.rect_size = (w * h) ** 0.5
-                        self.scale_ratio.set(w / h)
+                # Compare in original image space
+                if bbox_orig[0] <= img_x <= bbox_orig[2] and bbox_orig[1] <= img_y <= bbox_orig[3]:
+                    w_orig = bbox_orig[2] - bbox_orig[0]
+                    h_orig = bbox_orig[3] - bbox_orig[1]
+                    
+                    # Calculate dimensions as seen on the rotated canvas
+                    if self.rotation in [90, 270]:
+                        w_vis, h_vis = h_orig, w_orig
+                    else:
+                        w_vis, h_vis = w_orig, h_orig
+
+                    if h_vis > 0:
+                        self.rect_size = (w_vis * h_vis) ** 0.5
+                        self.scale_ratio.set(w_vis / h_vis)
                         self.update_preview_rect(event.x, event.y)
                         return
 
         # Iterate backwards to catch top-most box first
         for i in range(len(self.bboxes) - 1, -1, -1):
             box_orig = self.bboxes[i]
-            box_scaled = self._img_bbox_to_canvas_bbox(box_orig)
-            if box_scaled[0] <= x_canvas <= box_scaled[2] and box_scaled[1] <= y_canvas <= box_scaled[3]:
+            if box_orig[0] <= img_x <= box_orig[2] and box_orig[1] <= img_y <= box_orig[3]:
                 # Delete this box
                 self.canvas.delete(self.box_ids[i])
                 self.bboxes.pop(i)
@@ -597,6 +679,8 @@ class BBoxAnnotationApp:
 
         x_canvas = self.canvas.canvasx(event.x)
         y_canvas = self.canvas.canvasy(event.y)
+
+        img_x, img_y = self._canvas_to_img_coords(x_canvas, y_canvas)
 
         # Reset previously hovered box
         if self.hovered_box_id:
@@ -616,8 +700,7 @@ class BBoxAnnotationApp:
         # Find box under mouse
         for i in range(len(self.bboxes) - 1, -1, -1):
             box_orig = self.bboxes[i]
-            box_scaled = self._img_bbox_to_canvas_bbox(box_orig)
-            if box_scaled[0] <= x_canvas <= box_scaled[2] and box_scaled[1] <= y_canvas <= box_scaled[3]:
+            if box_orig[0] <= img_x <= box_orig[2] and box_orig[1] <= img_y <= box_orig[3]:
                 rect_id = self.box_ids[i]
                 self.canvas.itemconfig(rect_id, fill='red', stipple='gray25', outline='yellow', width=2)
                 self.hovered_box_id = rect_id
@@ -626,8 +709,7 @@ class BBoxAnnotationApp:
         # Highlight exam box if in rect mode
         if self.rect_mode_var.get():
             for rect_id, bbox_orig in self.exam_box_data.items():
-                bbox_scaled = self._img_bbox_to_canvas_bbox(bbox_orig)
-                if bbox_scaled[0] <= x_canvas <= bbox_scaled[2] and bbox_scaled[1] <= y_canvas <= bbox_scaled[3]:
+                if bbox_orig[0] <= img_x <= bbox_orig[2] and bbox_orig[1] <= img_y <= bbox_orig[3]:
                     self.canvas.itemconfig(rect_id, outline='magenta', width=3)
                     self.hovered_exam_box_id = rect_id
                     break
@@ -654,7 +736,7 @@ class BBoxAnnotationApp:
         
         # On Windows, event.delta is +/- 120.
         self.rect_size += (event.delta / 120) * 5
-        self.rect_size = max(10, self.rect_size) # Minimum size
+        self.rect_size = max(2, self.rect_size) # Minimum size
         self.update_preview_rect(event.x, event.y)
 
     def update_preview_rect(self, event_x, event_y):
@@ -780,6 +862,23 @@ class BBoxAnnotationApp:
         
         self.update_weird_button_state()
 
+    def rotate_image(self, delta):
+        self.rotation = (self.rotation + delta) % 360
+        self.pan_x = 0
+        self.pan_y = 0
+        self.redraw_all()
+
+    def change_zoom(self, factor):
+        self.zoom_multiplier *= factor
+        self.zoom_multiplier = max(0.5, min(self.zoom_multiplier, 10.0))
+        self.redraw_all()
+
+    def reset_zoom(self):
+        self.zoom_multiplier = 1.0
+        self.pan_x = 0
+        self.pan_y = 0
+        self.redraw_all()
+
     def update_weird_button_state(self):
         if not self.current_img_name: return
         weird_files = set()
@@ -797,6 +896,7 @@ class BBoxAnnotationApp:
             "Mouse Controls:\n"
             "- Left Click (Drag or Click-Click): Draw a bounding box.\n"
             "- Right Click: Delete a box / (Rect Mode) Copy size from existing box (Cyan).\n"
+            "- Right Click + Drag: Pan the image when zoomed in.\n"
             "- Mouse Wheel: (Rect Mode) Change rectangle size.\n\n"
             "Keyboard Shortcuts:\n"
             "- Left / Right Arrow: Previous / Skip Image.\n"
@@ -804,7 +904,9 @@ class BBoxAnnotationApp:
             "- 'S': Toggle Rectangle Mode.\n"
             "- 'R': Restart current image (Clear all boxes).\n"
             "- Ctrl+Z: Undo last point/box.\n"
-            "- Up / Down Arrow: Increase / Decrease aspect ratio.\n\n"
+            "- Up / Down Arrow: Increase / Decrease aspect ratio.\n"
+            "- Ctrl + / - : Zoom In / Out.\n"
+            "- Ctrl + 0 : Reset Zoom.\n\n"
             "Note: Enable 'Annotate Mode' to perform any actions that modify annotations."
         )
         messagebox.showinfo("Help - Usage Guide", help_text)
