@@ -6,13 +6,13 @@ from pathlib import Path
 def main():
     # Define paths relative to the project root
     # Assuming the script is run from the project root directory
-    base_dataset_dir = Path('dataset/pairtally_dataset')
+    base_dataset_dir = Path('dataset/PairTally/pairtally_dataset')
     images_dir = base_dataset_dir / 'images'
     annotations_file = base_dataset_dir / 'annotations' / 'pairtally_annotations_simple.json'
     
     # Output directories
-    output_image_dir = Path('dataset/processed_dataset/Image')
-    output_anno_dir = Path('dataset/processed_dataset/Anno')
+    output_image_dir = Path('dataset/PairTally/processed_dataset/Image')
+    output_anno_dir = Path('dataset/PairTally/processed_dataset/Anno')
     
     # Create output directories if they don't exist
     output_image_dir.mkdir(parents=True, exist_ok=True)

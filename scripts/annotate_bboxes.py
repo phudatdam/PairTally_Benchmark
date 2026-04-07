@@ -16,20 +16,21 @@ import shutil
 
 # Configuration: Paths relative to this script
 # Assuming script is in /scripts/ and folders are in project root
+DATASET = 'PairTally'  # Change this to your dataset folder name if different
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
-IMAGE_DIR = os.path.join(PROJECT_ROOT, 'dataset', 'processed_dataset', 'Image')
-ANNO_DIR = os.path.join(PROJECT_ROOT, 'dataset', 'processed_dataset', 'Anno')
-PROCESSED_ROOT = os.path.join(PROJECT_ROOT, 'dataset', 'processed_dataset')
-DATASET_ROOT = os.path.join(PROJECT_ROOT, 'dataset')
-REMOVED_DIR = os.path.join(PROJECT_ROOT, 'dataset', 'removed')
+IMAGE_DIR = os.path.join(PROJECT_ROOT, 'dataset', DATASET, 'processed_dataset', 'Image')
+ANNO_DIR = os.path.join(PROJECT_ROOT, 'dataset', DATASET, 'processed_dataset', 'Anno')
+PROCESSED_ROOT = os.path.join(PROJECT_ROOT, 'dataset', DATASET, 'processed_dataset')
+DATASET_ROOT = os.path.join(PROJECT_ROOT, 'dataset', DATASET)
+REMOVED_DIR = os.path.join(PROJECT_ROOT, 'dataset', DATASET, 'removed')
 REMOVED_TXT = os.path.join(DATASET_ROOT, 'removed.txt')
 WEIRD_TXT = os.path.join(DATASET_ROOT, 'weird_bbox.txt')
 
 class BBoxAnnotationApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("PairTally Bounding Box Annotator")
+        self.root.title("Bounding Box Annotator")
         self.root.geometry("1024x768")
 
         # State variables
@@ -57,6 +58,7 @@ class BBoxAnnotationApp:
         self.show_normal = tk.BooleanVar(value=True)
         self.show_weird = tk.BooleanVar(value=True)
         self.show_removed = tk.BooleanVar(value=False)
+        self.show_exam_boxes = tk.BooleanVar(value=True)
         self.annotation_enabled = tk.BooleanVar(value=False)
         self.is_dragging = False
         self.drag_start = None
@@ -91,74 +93,104 @@ class BBoxAnnotationApp:
         self.load_current_image()
 
     def setup_ui(self):
-        # Top Control Panel
-        control_frame = tk.Frame(self.root, padx=10, pady=10)
+        # Master Control Panel
+        control_frame = tk.Frame(self.root, padx=10, pady=5)
         control_frame.pack(side=tk.TOP, fill=tk.X)
 
-        # Row 1: Info
-        self.lbl_info = tk.Label(control_frame, text="Loading...", font=("Arial", 12, "bold"))
-        self.lbl_info.pack(side=tk.TOP, anchor=tk.W)
+        # --- Row 1: Status Bar ---
+        status_frame = tk.Frame(control_frame)
+        status_frame.pack(side=tk.TOP, fill=tk.X, pady=5)
+        
+        self.lbl_info = tk.Label(status_frame, text="Loading...", font=("Arial", 11, "bold"), fg="#2c3e50")
+        self.lbl_info.pack(side=tk.LEFT)
+        
+        self.lbl_progress = tk.Label(status_frame, text="Boxes: 0/10", font=("Arial", 11, "bold"), fg="#c0392b")
+        self.lbl_progress.pack(side=tk.RIGHT)
 
-        # Row 2: Drawing Controls
+        # --- Row 2: Main Controls ---
         row2 = tk.Frame(control_frame)
-        row2.pack(side=tk.TOP, fill=tk.X, pady=2)
+        row2.pack(side=tk.TOP, fill=tk.X)
 
-        self.chk_annotate = tk.Checkbutton(row2, text="Annotate Mode", 
-                                            variable=self.annotation_enabled, 
-                                            command=self.update_ui_state)
-        self.chk_annotate.pack(side=tk.LEFT, padx=(0, 10))
-
-        self.lbl_progress = tk.Label(row2, text="Boxes: 0/10", font=("Arial", 12))
-        self.lbl_progress.pack(side=tk.LEFT, padx=(0, 10))
-
-        self.btn_undo = tk.Button(row2, text="Undo", command=self.undo_click)
+        # Group: Mode
+        state_group = tk.LabelFrame(row2, text="Workflow", padx=5, pady=5)
+        state_group.pack(side=tk.LEFT, fill=tk.Y, padx=2)
+        
+        self.chk_annotate = tk.Checkbutton(state_group, text="Annotate Mode", variable=self.annotation_enabled, command=self.update_ui_state)
+        self.chk_annotate.pack(side=tk.LEFT)
+        
+        self.btn_undo = tk.Button(state_group, text="⎌ Undo", command=self.undo_click)
         self.btn_undo.pack(side=tk.LEFT, padx=5)
-
-        self.btn_restart = tk.Button(row2, text="Restart", command=self.restart_image)
+        
+        self.btn_restart = tk.Button(state_group, text="⟲ Reset", command=self.restart_image)
         self.btn_restart.pack(side=tk.LEFT, padx=5)
-
-        self.chk_rect_mode = tk.Checkbutton(row2, text="Rect Mode (scroll=size)", 
-                                              variable=self.rect_mode_var, 
-                                              command=self.toggle_rect_mode)
-        self.chk_rect_mode.pack(side=tk.LEFT, padx=5)
-
-        self.scale_ratio = tk.Scale(row2, from_=0.2, to=5.0, resolution=0.1, orient=tk.HORIZONTAL, label="Ratio W/H", length=100)
-        self.scale_ratio.set(1.0)
-        self.scale_ratio.pack(side=tk.LEFT, padx=5)
-
-        self.btn_confirm = tk.Button(row2, text="Confirm & Save", command=self.confirm_and_next, state=tk.DISABLED, bg="green", fg="white")
+        
+        self.btn_confirm = tk.Button(state_group, text="💾 Confirm & Save", command=self.confirm_and_next, state=tk.DISABLED, bg="#27ae60", fg="white", font=("Arial", 9, "bold"))
         self.btn_confirm.pack(side=tk.LEFT, padx=5)
 
-        # Row 3: Navigation
-        row3 = tk.Frame(control_frame)
-        row3.pack(side=tk.TOP, fill=tk.X, pady=2)
+        # Group: Rect Mode Settings
+        rect_group = tk.LabelFrame(row2, text="Rect Mode (Auto-Aspect)", padx=5, pady=5)
+        rect_group.pack(side=tk.LEFT, fill=tk.Y, padx=2)
         
-        self.btn_prev = tk.Button(row3, text="<< Previous", command=self.prev_image)
-        self.btn_prev.pack(side=tk.LEFT, padx=5)
+        self.chk_rect_mode = tk.Checkbutton(rect_group, text="Enabled", variable=self.rect_mode_var, command=self.toggle_rect_mode)
+        self.chk_rect_mode.pack(side=tk.LEFT, padx=(0, 5))
         
-        self.btn_skip = tk.Button(row3, text="Skip/Next >>", command=self.skip_image)
-        self.btn_skip.pack(side=tk.LEFT, padx=5)
+        tk.Label(rect_group, text="H/W Ratio:", font=("Arial", 8)).pack(side=tk.LEFT, padx=(5, 0))
+        self.scale_ratio = tk.Scale(rect_group, from_=0.2, to=5.0, resolution=0.1, orient=tk.HORIZONTAL, length=70, showvalue=True)
+        self.scale_ratio.set(1.0)
+        self.scale_ratio.pack(side=tk.LEFT, padx=(0, 10))
+        
+        tk.Label(rect_group, text="Randomness:", font=("Arial", 8)).pack(side=tk.LEFT, padx=(5, 0))
+        self.scale_random = tk.Scale(rect_group, from_=0.0, to=0.5, resolution=0.01, orient=tk.HORIZONTAL, length=70, showvalue=True)
+        self.scale_random.set(0.1)
+        self.scale_random.pack(side=tk.LEFT, padx=(0, 5))
 
-        tk.Label(row3, text="Jump to:").pack(side=tk.LEFT, padx=(20, 5))
-        self.entry_jump = tk.Entry(row3)
-        self.entry_jump.pack(side=tk.LEFT, padx=5)
-        self.entry_jump.bind("<Return>", lambda e: self.jump_to_image())
-        tk.Button(row3, text="Go", command=self.jump_to_image).pack(side=tk.LEFT, padx=2)
+        # Group: Rotate
+        rotate_group = tk.LabelFrame(row2, text="Rotate", padx=5, pady=5)
+        rotate_group.pack(side=tk.LEFT, fill=tk.Y, padx=2)
+        
+        self.btn_rot_ccw = tk.Button(rotate_group, text="⟲", command=lambda: self.rotate_image(-90), width=3)
+        self.btn_rot_ccw.pack(side=tk.LEFT, padx=1)
+        self.btn_rot_cw = tk.Button(rotate_group, text="⟳", command=lambda: self.rotate_image(90), width=3)
+        self.btn_rot_cw.pack(side=tk.LEFT, padx=1)
 
-        self.btn_weird = tk.Button(row2, text="Weird BBox: NO", command=self.toggle_weird_bbox)
-        self.btn_weird.pack(side=tk.LEFT, padx=(5, 5))
+        self.btn_remove = tk.Button(row2, text="🗑 Remove", command=self.remove_current_image, bg="#c0392b", fg="white", font=("Arial", 9, "bold"))
+        self.btn_remove.pack(side=tk.RIGHT, padx=5, pady=10)
+        
+        self.btn_weird = tk.Button(row2, text="⚠ Weird: NO", command=self.toggle_weird_bbox, font=("Arial", 9))
+        self.btn_weird.pack(side=tk.RIGHT, padx=5, pady=10)
         self.default_btn_bg = self.btn_weird.cget('bg')
 
-        tk.Label(row3, text="Sets:").pack(side=tk.LEFT, padx=(20, 5))
-        tk.Checkbutton(row3, text="Normal", variable=self.show_normal, command=self.refresh_list_and_load).pack(side=tk.LEFT)
-        tk.Checkbutton(row3, text="Weird", variable=self.show_weird, command=self.refresh_list_and_load).pack(side=tk.LEFT)
-        tk.Checkbutton(row3, text="Removed", variable=self.show_removed, command=self.refresh_list_and_load).pack(side=tk.LEFT)
+        # --- Row 3: Navigation & Filters ---
+        row3 = tk.Frame(control_frame)
+        row3.pack(side=tk.TOP, fill=tk.X, pady=5)
 
-        self.btn_help = tk.Button(row3, text="Help", command=self.show_help)
+        nav_group = tk.LabelFrame(row3, text="Navigation", padx=5, pady=2)
+        nav_group.pack(side=tk.LEFT, fill=tk.Y, padx=2)
+        
+        self.btn_prev = tk.Button(nav_group, text="⏪ Prev", command=self.prev_image)
+        self.btn_prev.pack(side=tk.LEFT, padx=2)
+        
+        self.btn_skip = tk.Button(nav_group, text="Next ⏩", command=self.skip_image)
+        self.btn_skip.pack(side=tk.LEFT, padx=2)
+
+        tk.Label(nav_group, text="Go to:").pack(side=tk.LEFT, padx=(10, 2))
+        self.entry_jump = tk.Entry(nav_group, width=12)
+        self.entry_jump.pack(side=tk.LEFT, padx=2)
+        self.entry_jump.bind("<Return>", lambda e: self.jump_to_image())
+
+        filter_group = tk.LabelFrame(row3, text="View Filters", padx=5, pady=2)
+        filter_group.pack(side=tk.LEFT, fill=tk.Y, padx=2)
+        
+        tk.Checkbutton(filter_group, text="Normal", variable=self.show_normal, command=self.refresh_list_and_load).pack(side=tk.LEFT)
+        tk.Checkbutton(filter_group, text="Weird", variable=self.show_weird, command=self.refresh_list_and_load).pack(side=tk.LEFT)
+        tk.Checkbutton(filter_group, text="Removed", variable=self.show_removed, command=self.refresh_list_and_load).pack(side=tk.LEFT)
+        
+        self.chk_show_exam = tk.Checkbutton(row3, text="Display example bounding boxes", variable=self.show_exam_boxes, 
+                                              command=self.redraw_all, fg="#008b8b", font=("Arial", 9, "bold"))
+        self.chk_show_exam.pack(side=tk.LEFT, padx=20)
+
+        self.btn_help = tk.Button(row3, text="❓ Help", command=self.show_help, width=8)
         self.btn_help.pack(side=tk.RIGHT, padx=5)
-
-        self.btn_remove = tk.Button(row2, text="Remove Image", command=self.remove_current_image, bg="#ff4444", fg="white")
-        self.btn_remove.pack(side=tk.LEFT, padx=5)
 
         self.canvas_frame = tk.Frame(self.root)
         self.canvas_frame.pack(fill=tk.BOTH, expand=True)
@@ -191,12 +223,6 @@ class BBoxAnnotationApp:
         self.root.bind("<Control-equal>", lambda e: self.handle_shortcut(lambda: self.change_zoom(1.1)))
         self.root.bind("<Control-minus>", lambda e: self.handle_shortcut(lambda: self.change_zoom(0.9)))
         self.root.bind("<Control-0>", lambda e: self.handle_shortcut(self.reset_zoom))
-
-        # Rotation buttons
-        self.btn_rot_ccw = tk.Button(row2, text="Rotate CCW", command=lambda: self.rotate_image(-90))
-        self.btn_rot_ccw.pack(side=tk.LEFT, padx=5)
-        self.btn_rot_cw = tk.Button(row2, text="Rotate CW", command=lambda: self.rotate_image(90))
-        self.btn_rot_cw.pack(side=tk.LEFT, padx=5)
 
     def on_resize(self, event):
         # Redraw canvas content on resize, but only if an image is loaded
@@ -408,11 +434,12 @@ class BBoxAnnotationApp:
         self.box_ids = []
         self.exam_box_data = {}
         # Draw exam_bboxes
-        exam_bboxes = self.current_anno_data.get('exam_bbox', [])
-        for bbox in exam_bboxes:
-            scaled_bbox = self._img_bbox_to_canvas_bbox(bbox)
-            rect_id = self.canvas.create_rectangle(scaled_bbox, outline="cyan", width=2)
-            self.exam_box_data[rect_id] = bbox
+        if self.show_exam_boxes.get():
+            exam_bboxes = self.current_anno_data.get('exam_bbox', [])
+            for bbox in exam_bboxes:
+                scaled_bbox = self._img_bbox_to_canvas_bbox(bbox)
+                rect_id = self.canvas.create_rectangle(scaled_bbox, outline="cyan", width=2)
+                self.exam_box_data[rect_id] = bbox
         # Draw loc_bboxes
         for bbox in self.bboxes:
             scaled_bbox = self._img_bbox_to_canvas_bbox(bbox)
@@ -443,25 +470,28 @@ class BBoxAnnotationApp:
         is_enabled = self.annotation_enabled.get()
         class_name = self.current_anno_data.get('class_name', 'Unknown')
         self.lbl_info.config(text=f"Class: {class_name} | Image: {self.current_img_name} ({self.current_image_index + 1}/{len(self.image_list)})")
-        self.lbl_progress.config(text=f"Boxes: {len(self.bboxes)}/10")
-        
+
+        box_count = len(self.bboxes)
+        self.lbl_progress.config(text=f"Boxes: {box_count}/10", fg="#27ae60" if box_count >= 10 else "#c0392b")
+
         if is_enabled and len(self.bboxes) == 10 and not self.is_viewing_removed:
             self.btn_confirm.config(state=tk.NORMAL)
         else:
             self.btn_confirm.config(state=tk.DISABLED)
         
         if self.is_viewing_removed:
-            self.btn_remove.config(text="Restore Image", bg="blue", state=tk.NORMAL if is_enabled else tk.DISABLED)
+            self.btn_remove.config(text="⬆ Restore", bg="#2980b9", state=tk.NORMAL if is_enabled else tk.DISABLED)
             self.btn_undo.config(state=tk.DISABLED)
             self.btn_restart.config(state=tk.DISABLED)
             self.btn_weird.config(state=tk.DISABLED)
             self.canvas.config(cursor="arrow")
         else:
-            self.btn_remove.config(text="Remove Image", bg="#ff4444", state=tk.NORMAL if is_enabled else tk.DISABLED)
+            self.btn_remove.config(text="🗑 Remove", bg="#c0392b", state=tk.NORMAL if is_enabled else tk.DISABLED)
             self.btn_undo.config(state=tk.NORMAL if is_enabled else tk.DISABLED)
             self.btn_restart.config(state=tk.NORMAL if is_enabled else tk.DISABLED)
             self.chk_rect_mode.config(state=tk.NORMAL if is_enabled else tk.DISABLED)
             self.scale_ratio.config(state=tk.NORMAL if is_enabled else tk.DISABLED)
+            self.scale_random.config(state=tk.NORMAL if is_enabled else tk.DISABLED)
             self.btn_weird.config(state=tk.NORMAL if is_enabled else tk.DISABLED)
             self.canvas.config(cursor="tcross" if is_enabled else "arrow")
 
@@ -483,8 +513,9 @@ class BBoxAnnotationApp:
             # Apply ratio from slider
             target_ratio = self.scale_ratio.get()
 
-            # Add randomness to aspect ratio (+/- 10% of the target ratio)
-            ratio_randomness = 1.0 + (random.random() - 0.5) * 0.2
+            # Add randomness to aspect ratio based on slider value
+            rand_val = self.scale_random.get()
+            ratio_randomness = 1.0 + (random.random() - 0.5) * (rand_val * 2)
             final_ratio = target_ratio * ratio_randomness
 
             # Calculate width and height while preserving approximate area of rect_size^2
@@ -638,7 +669,7 @@ class BBoxAnnotationApp:
 
         img_x, img_y = self._canvas_to_img_coords(x_canvas, y_canvas)
 
-        if self.rect_mode_var.get():
+        if self.rect_mode_var.get() and self.show_exam_boxes.get():
             # Check if clicked on an exam box to copy size
             for rect_id, bbox_orig in self.exam_box_data.items():
                 # Compare in original image space
@@ -707,7 +738,7 @@ class BBoxAnnotationApp:
                 return
 
         # Highlight exam box if in rect mode
-        if self.rect_mode_var.get():
+        if self.rect_mode_var.get() and self.show_exam_boxes.get():
             for rect_id, bbox_orig in self.exam_box_data.items():
                 if bbox_orig[0] <= img_x <= bbox_orig[2] and bbox_orig[1] <= img_y <= bbox_orig[3]:
                     self.canvas.itemconfig(rect_id, outline='magenta', width=3)
@@ -887,29 +918,37 @@ class BBoxAnnotationApp:
                 weird_files = {line.strip() for line in f if line.strip()}
         
         if self.current_img_name in weird_files:
-            self.btn_weird.config(text="Weird BBox: YES", bg="orange")
+            self.btn_weird.config(text="⚠ Weird: YES", bg="#f39c12")
         else:
-            self.btn_weird.config(text="Weird BBox: NO", bg=self.default_btn_bg)
+            self.btn_weird.config(text="⚠ Weird: NO", bg=self.default_btn_bg)
 
     def show_help(self):
         help_text = (
-            "Mouse Controls:\n"
-            "- Left Click (Drag or Click-Click): Draw a bounding box.\n"
-            "- Right Click: Delete a box / (Rect Mode) Copy size from existing box (Cyan).\n"
-            "- Right Click + Drag: Pan the image when zoomed in.\n"
-            "- Mouse Wheel: (Rect Mode) Change rectangle size.\n\n"
-            "Keyboard Shortcuts:\n"
-            "- Left / Right Arrow: Previous / Skip Image.\n"
-            "- Space: Confirm & Save (requires 10 boxes).\n"
-            "- 'S': Toggle Rectangle Mode.\n"
-            "- 'R': Restart current image (Clear all boxes).\n"
-            "- Ctrl+Z: Undo last point/box.\n"
-            "- Up / Down Arrow: Increase / Decrease aspect ratio.\n"
-            "- Ctrl + / - : Zoom In / Out.\n"
-            "- Ctrl + 0 : Reset Zoom.\n\n"
-            "Note: Enable 'Annotate Mode' to perform any actions that modify annotations."
+            "--- PairTally BBox Annotator Help ---\n\n"
+            "🖱 MOUSE CONTROLS\n"
+            "• Left Click: Draw a box (Click & Drag or Click twice).\n"
+            "• Right Click: Delete a box under the cursor.\n"
+            "• Right Click (on Cyan box): In 'Rect Mode', matches size and ratio to that example.\n"
+            "• Right Click + Drag: Pan the image view when zoomed in.\n"
+            "• Mouse Wheel: In 'Rect Mode', scales the rectangle size up or down.\n\n"
+            "⌨ KEYBOARD SHORTCUTS\n"
+            "• Space: 💾 Confirm & Save (Requires exactly 10 boxes).\n"
+            "• S: Toggle 'Rect Mode' (Auto-Aspect Ratio).\n"
+            "• R: ⟲ Reset all annotations for the current image.\n"
+            "• Ctrl+Z: ⎌ Undo last point or box placement.\n"
+            "• Arrows (← / →): Navigate to Previous / Next image.\n"
+            "• Arrows (↑ / ↓): Fine-tune the H/W Ratio in 'Rect Mode'.\n"
+            "• Ctrl (+ / - / 0): Zoom In / Out / Reset Zoom level.\n\n"
+            "🛠 WORKFLOW & UI\n"
+            "• Annotate Mode: Must be checked to add/delete boxes or change image status.\n"
+            "• View Filters: Toggle which sets of images (Normal, Weird, Removed) appear in the list.\n"
+            "• ⚠ Weird: Use this if the example (Cyan) boxes are incorrect, missing, or poor quality.\n"
+            "• 🗑 Remove: Moves the current image to the 'removed' folder and out of the active set.\n\n"
+            "💡 Pro Tip: Boxes turn yellow when hovered over, and the progress label turns GREEN once you hit 10 boxes!"
         )
-        messagebox.showinfo("Help - Usage Guide", help_text)
+        help_window = tk.Toplevel(self.root)
+        help_window.title("Usage Guide")
+        tk.Label(help_window, text=help_text, justify=tk.LEFT, font=("Consolas", 10), padx=20, pady=20).pack()
 
     def jump_to_image(self):
         query = self.entry_jump.get().strip()

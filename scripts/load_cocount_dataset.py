@@ -4,7 +4,7 @@ from pathlib import Path
 from datasets import load_dataset, Dataset
 
 # Point to the folder where you downloaded the CLI files
-local_dir = Path(__file__).parent.parent / "dataset" / "CoCount-train"
+local_dir = Path(__file__).parent.parent / "dataset" / "CoCount-train" / "CoCount-train-raw"
 local_data_dir = local_dir / "data"
 
 if not local_dir.exists():
@@ -24,7 +24,7 @@ print(ds)
 
 # --- Inspection Logic ---
 
-manifest_path = Path(__file__).parent.parent / 'dataset' / 'pairtally_dataset' / 'annotations' / 'pairtally_annotations_simple.json'
+manifest_path = Path(__file__).parent.parent / 'dataset' / 'PairTally' / 'pairtally_dataset' / 'annotations' / 'pairtally_annotations_simple.json'
 
 if manifest_path.exists():
     print(f"\nComparing with local manifest: {manifest_path}")

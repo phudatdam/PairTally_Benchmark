@@ -9,8 +9,8 @@ def main():
     project_root = script_dir.parent
     
     # Paths
-    metadata_path = project_root / "dataset" / "pairtally_dataset" / "annotations" / "image_metadata.json"
-    manifest_path = project_root / "dataset" / "pairtally_dataset" / "annotations" / "pairtally_annotations_simple.json"
+    metadata_path = project_root / "dataset" / "PairTally" / "pairtally_dataset" / "annotations" / "image_metadata.json"
+    manifest_path = project_root / "dataset" / "PairTally" / "pairtally_dataset" / "annotations" / "pairtally_annotations_simple.json"
     
     def normalize_name(n):
         """Standardize names for robust mapping: remove parentheses and non-alphanum."""

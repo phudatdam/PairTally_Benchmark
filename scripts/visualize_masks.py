@@ -9,10 +9,10 @@ from PIL import Image, ImageTk, ImageDraw
 # Path Configuration
 SCRIPT_DIR = Path(__file__).parent
 PROJECT_ROOT = SCRIPT_DIR.parent
-IMAGE_DIR = PROJECT_ROOT / 'dataset' / 'processed_dataset' / 'Image'
-ANNO_DIR = PROJECT_ROOT / 'dataset' / 'processed_dataset' / 'Anno'
-MASK_ROOT = PROJECT_ROOT / 'dataset' / 'processed_dataset' / 'mask'
-WEIRD_TXT = PROJECT_ROOT / 'dataset' / 'weird_bbox.txt'
+IMAGE_DIR = PROJECT_ROOT / 'dataset' / 'PairTally' / 'processed_dataset' / 'Image'
+ANNO_DIR = PROJECT_ROOT / 'dataset' / 'PairTally' / 'processed_dataset' / 'Anno'
+MASK_ROOT = PROJECT_ROOT / 'dataset' / 'PairTally' / 'processed_dataset' / 'mask'
+WEIRD_TXT = PROJECT_ROOT / 'dataset' / 'PairTally' / 'weird_bbox.txt'
 
 # Colors for the 3 masks (RGBA: Red, Green, Blue with 50% transparency)
 MASK_COLORS = [

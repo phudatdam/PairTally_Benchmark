@@ -1,10 +1,10 @@
 # PairTally Bounding Box Annotator
 
-This repository provides a GUI tool for annotating bounding boxes in the PairTally dataset.
+This repository provides a GUI tool for annotating bounding boxes in the PairTally and CoCount datasets.
 
 ## Data Setup
 
-1. **Download Data**: Obtain the PairTally images and initial metadata from [Google Drive](https://drive.google.com/drive/folders/1yaDq87l-Ha08OjgIFwKS7GluzGekah0t?usp=drive_link).
+1. **Download Data**: Download the dataset from [Google Drive](https://drive.google.com/drive/folders/1yaDq87l-Ha08OjgIFwKS7GluzGekah0t?usp=drive_link).
 2. **Organize Directory**: Extract the downloaded data so it follows the structure below.
 
 ## Expected File Structure
@@ -12,15 +12,21 @@ This repository provides a GUI tool for annotating bounding boxes in the PairTal
 ```
 PairTally_Benchmark/
 ├── dataset/
-│   ├── processed_dataset/
-│   │   ├── Anno/             # Active JSON annotation files
-│   │   ├── Image/            # Active image files
-│   |   └── mask/             # Example segmentation masks
-│   ├── removed/
-│   │   ├── Anno/             # Annotations for removed images
-│   │   └── Image/            # Removed image files
-│   ├── removed.txt           # Log of filenames removed from the active set
-│   └── weird_bbox.txt        # Log of images with problematic existing objects
+│ ├── CoCount-train/
+│ │ ├── CoCount-train-raw/ # Raw CoCount train parquet files
+│ │ ├── processed_dataset/ # Processed CoCount train dataset
+│ │ │ ├── Anno/
+│ │ │ └── Image/
+│ │ └── weird_bbox.txt # Log of images with example bounding boxes that don't fully contain the object
+│ └── PairTally/
+│   ├── pairtally_dataset/ # Original PairTally dataset
+│   ├── processed_dataset/ # Processed PairTally dataset
+│   │ ├── Anno/
+│   │ ├── Image/
+│   │ └── mask/
+│   ├── removed/ # Folder for filtered-out images
+│   ├── removed.txt # Log of removed filenames
+│   └── weird_bbox.txt # Log of images with example bounding boxes that don't fully contain the object
 ├── scripts/
 │   ├── annotate_bboxes.py    # Main annotation interface
 │   └── visualize_masks.py    # Script for visualizing segmentation masks

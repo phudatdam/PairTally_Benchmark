@@ -7,11 +7,11 @@ from collections import Counter, defaultdict
 def main():
     script_dir = Path(__file__).parent
     project_root = script_dir.parent
-    local_dir = project_root / "dataset" / "CoCount-train"
+    local_dir = project_root / "dataset" / "CoCount-train" / "CoCount-train-raw"
     local_data_dir = local_dir / "data"
     
     # 0. Load Metadata for strict mapping if available
-    metadata_path = project_root / "dataset" / "pairtally_dataset" / "annotations" / "image_metadata.json"
+    metadata_path = project_root / "dataset" / "PairTally" / "pairtally_dataset" / "annotations" / "image_metadata.json"
     meta_map = {}
     if metadata_path.exists():
         print(f"Loading metadata mapping from {metadata_path}...")

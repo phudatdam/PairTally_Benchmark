@@ -21,9 +21,9 @@ def main():
     # 1. Setup Paths
     script_dir = Path(__file__).parent
     project_root = script_dir.parent
-    image_dir = project_root / 'dataset' / 'processed_dataset' / 'Image'
-    anno_dir = project_root / 'dataset' / 'processed_dataset' / 'Anno'
-    mask_root = project_root / 'dataset' / 'processed_dataset' / 'mask'
+    image_dir = project_root / 'dataset' / 'PairTally' / 'processed_dataset' / 'Image'
+    anno_dir = project_root / 'dataset' / 'PairTally' / 'processed_dataset' / 'Anno'
+    mask_root = project_root / 'dataset' / 'PairTally' / 'processed_dataset' / 'mask'
 
     # 2. SAM Configuration
     # Ensure you have downloaded the checkpoint file (e.g., vit_h)

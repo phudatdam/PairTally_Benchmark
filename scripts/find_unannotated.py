@@ -11,8 +11,8 @@ def main():
     script_dir = Path(__file__).parent
     project_root = script_dir.parent
     anno_dirs = [
-        project_root / 'dataset' / 'processed_dataset' / 'Anno',
-        project_root / 'dataset' / 'removed' / 'Anno'
+        project_root / 'dataset' / 'PairTally' / 'processed_dataset' / 'Anno',
+        project_root / 'dataset' / 'PairTally' / 'removed' / 'Anno'
     ]
 
     json_files = []

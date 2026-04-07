@@ -4,13 +4,13 @@ from pathlib import Path
 from datasets import load_dataset, Image as HFImage
 
 # Point to the folder where you downloaded the CoCount-test files
-local_dir = Path(__file__).parent.parent / "dataset" / "CoCount-test"
+local_dir = Path(__file__).parent.parent / "dataset" / "CoCount-test" / "CoCount-test-raw"
 local_data_dir = local_dir / "data"
 
 if not local_dir.exists():
     print(f"Error: The directory {local_dir} does not exist.")
     print("Please run the following command first:")
-    print("python -c \"from huggingface_hub import snapshot_download; snapshot_download(repo_id='BBVisual/CoCount-test', repo_type='dataset', local_dir='dataset/CoCount-test', local_dir_use_symlinks=False)\"")
+    print("python -c \"from huggingface_hub import snapshot_download; snapshot_download(repo_id='BBVisual/CoCount-test', repo_type='dataset', local_dir='dataset/CoCount-test/CoCount-test-raw', local_dir_use_symlinks=False)\"")
     exit(1)
 
 # Use rglob to find all parquet files recursively. 
@@ -27,7 +27,7 @@ print(ds)
 
 # --- Inspection Logic ---
 
-manifest_path = Path(__file__).parent.parent / 'dataset' / 'pairtally_dataset' / 'annotations' / 'pairtally_annotations_simple.json'
+manifest_path = Path(__file__).parent.parent / 'dataset' / 'PairTally' / 'pairtally_dataset' / 'annotations' / 'pairtally_annotations_simple.json'
 
 if manifest_path.exists():
     print(f"\nComparing with local manifest: {manifest_path}")
@@ -100,7 +100,7 @@ if manifest_path.exists():
     # Build global map across all splits
     all_splits_map = {"test": get_hf_mapping(hf_data, hf_image_names)}
     for sn in ["val", "train"]:
-        sp = Path(__file__).parent.parent / "dataset" / f"CoCount-{sn}" / "data"
+        sp = Path(__file__).parent.parent / "dataset" / f"CoCount-{sn}" / f"CoCount-{sn}-raw" / "data"
         if sp.exists():
             s_files = [str(f.resolve()) for f in sp.glob("*.parquet")]
             s_ds = load_dataset("parquet", data_files={sn: s_files}, split=sn)
@@ -154,7 +154,7 @@ if manifest_path.exists():
         if split_name == "test":
             target_ds = hf_data
         else:
-            sp = Path(__file__).parent.parent / "dataset" / f"CoCount-{split_name}" / "data"
+            sp = Path(__file__).parent.parent / "dataset" / f"CoCount-{split_name}" / f"CoCount-{split_name}-raw" / "data"
             s_files = [str(f.resolve()) for f in sp.glob("*.parquet")]
             target_ds = load_dataset("parquet", data_files={split_name: s_files}, split=split_name)
             
@@ -175,7 +175,7 @@ if manifest_path.exists():
     if not missing_names:
         print("\nAll 681 images accounted for across Test, Val, and Train splits.")
     else:
-        missing_log = Path(__file__).parent.parent / "dataset" / "missing_images.txt"
+        missing_log = Path(__file__).parent.parent / "dataset" / "PairTally" / "missing_images.txt"
         with open(missing_log, 'w') as f:
             f.write('\n'.join(sorted(list(missing_names))))
         print(f"\nStill missing {len(missing_names)} images. Names saved to {missing_log}")

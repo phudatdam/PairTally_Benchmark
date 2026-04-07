@@ -16,12 +16,12 @@ def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
     project_root = os.path.dirname(script_dir)
     
-    source_json_path = os.path.join(project_root, 'dataset', 'pairtally_dataset', 'annotations', 'pairtally_annotations_simple.json')
+    source_json_path = os.path.join(project_root, 'dataset', 'PairTally', 'pairtally_dataset', 'annotations', 'pairtally_annotations_simple.json')
     
     # We need to check both the active and removed annotation folders
     anno_dirs = [
-        os.path.join(project_root, 'dataset', 'processed_dataset', 'Anno'),
-        os.path.join(project_root, 'dataset', 'removed', 'Anno')
+        os.path.join(project_root, 'dataset', 'PairTally', 'processed_dataset', 'Anno'),
+        os.path.join(project_root, 'dataset', 'PairTally', 'removed', 'Anno')
     ]
 
     print(f"Reading source from: {source_json_path}")

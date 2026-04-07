@@ -7,7 +7,7 @@ from collections import Counter, defaultdict
 def main():
     script_dir = Path(__file__).parent
     project_root = script_dir.parent
-    local_dir = project_root / "dataset" / "CoCount-test"
+    local_dir = project_root / "dataset" / "CoCount-test" / "CoCount-test-raw"
     local_data_dir = local_dir / "data"
 
     import re
@@ -18,7 +18,7 @@ def main():
         return " ".join(n.split())
 
     # 0. Load Metadata for strict mapping
-    metadata_path = project_root / "dataset" / "pairtally_dataset" / "annotations" / "image_metadata.json"
+    metadata_path = project_root / "dataset" / "PairTally" / "pairtally_dataset" / "annotations" / "image_metadata.json"
     meta_map = {}
     name_to_code = {} # Reverse mapping for test set robustness
     if metadata_path.exists():
