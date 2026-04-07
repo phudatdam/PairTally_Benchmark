@@ -16,7 +16,7 @@ import shutil
 
 # Configuration: Paths relative to this script
 # Assuming script is in /scripts/ and folders are in project root
-DATASET = 'PairTally'  # Change this to your dataset folder name if different
+DATASET = 'CoCount-train'  # Change this to your dataset folder name if different
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
 IMAGE_DIR = os.path.join(PROJECT_ROOT, 'dataset', DATASET, 'processed_dataset', 'Image')
